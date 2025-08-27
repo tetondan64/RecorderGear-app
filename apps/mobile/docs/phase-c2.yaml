@@ -1,0 +1,65 @@
+phase: C2
+title: "Production-Style Cloud Storage (S3-Compatible Presigned Uploads)"
+goal: "Adopt S3-style presigned uploads + finalize workflow with signed GET playback URLs; run locally via MinIO and later switch to AWS S3 by env vars only."
+
+assumptions:
+  - Expo Go mobile app.
+  - API runs on laptop (port 4000).
+  - S3-compatible storage available locally via MinIO; same code works with AWS S3.
+
+storage:
+  bucket: env(S3_BUCKET)
+  object_key_format: "recordings/{id}.m4a"
+  put_expires_sec: 900
+  get_expires_sec: 900
+
+api_routes:
+  - POST /v1/uploads/presign → returns { url, method:'PUT', headers, key, expiresSec }
+  - POST /v1/recordings/finalize → persists metadata { id, key, title, durationSec, createdAt }
+  - GET /v1/recordings → returns items with short-lived signed fileUrl
+  - DELETE /v1/recordings/:id → deletes S3 object + metadata
+  - GET /v1/health/ping → { ok:true, storage:'s3' }
+
+data_model:
+  recording_meta:
+    fields: [id, key, title, durationSec, createdAt, updatedAt]
+    invariants:
+      - key must begin with "recordings/"
+      - id must be unique; finalize is idempotent
+
+acceptance_criteria:
+  - [ ] MinIO starts via docker compose; bucket exists.
+  - [ ] /v1/uploads/presign returns a usable PUT url with Content-Type header.
+  - [ ] Mobile can PUT-upload a .m4a and then POST /finalize; list shows the item with a playable fileUrl.
+  - [ ] Delete removes both the S3 object and metadata.
+  - [ ] Swap to AWS S3 by changing env vars only; no code changes required.
+  - [ ] All new API + mobile tests pass; ESLint + TS strict pass; CI green.
+
+tests:
+  api:
+    - presign.test: returns signed PUT & key
+    - finalize_list_delete.e2e: finalize→list→delete happy path
+  mobile:
+    - upload_flow.spec.tsx: presign→PUT→finalize success; error toasts on failure
+  assertions_minimum: 20
+
+perf_budgets:
+  - presign_latency_p95_ms: <= 200
+  - signed_get_generation_ms_p95: <= 50
+  - upload_start_to_finalize_p95_ms (10MB over LAN): <= 2000
+
+accessibility:
+  - Cloud status text in Settings announces "Connected to S3-compatible storage"
+
+ci_pipeline:
+  - API job runs tests
+  - Mobile job unchanged
+
+risks_and_mitigations:
+  - risk: "MinIO not reachable from phone"
+    mitigation: "Ensure same Wi-Fi; use laptop LAN IP; open firewall for 9000/9001; verify via phone browser."
+  - risk: "Clock skew breaks signatures"
+    mitigation: "Ensure laptop time sync; use short expirations and regenerate on list."
+
+notes:
+  - Next phases can add auto backup and feature flags; this phase focuses on the core storage flow and manual upload.

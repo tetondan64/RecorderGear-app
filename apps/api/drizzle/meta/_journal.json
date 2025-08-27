@@ -1,0 +1,27 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1756255634905,
+      "tag": "0000_ambiguous_sandman",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1756308227217,
+      "tag": "0001_public_bruce_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1756310365425,
+      "tag": "0002_same_firelord",
+      "breakpoints": true
+    }
+  ]
+}

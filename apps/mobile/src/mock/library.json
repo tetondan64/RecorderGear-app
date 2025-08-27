@@ -1,0 +1,72 @@
+[
+  {
+    "id": "rec-001",
+    "title": "Team Meeting - Q4 Planning",
+    "durationSec": 1847,
+    "tags": ["meeting", "planning", "team"],
+    "createdAt": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "rec-002",
+    "title": "Interview with Sarah Johnson",
+    "durationSec": 2156,
+    "tags": ["interview", "hr"],
+    "createdAt": "2024-01-14T14:15:00Z"
+  },
+  {
+    "id": "rec-003",
+    "title": "Product Demo Rehearsal",
+    "durationSec": 945,
+    "tags": ["demo", "product", "rehearsal"],
+    "createdAt": "2024-01-13T16:45:00Z"
+  },
+  {
+    "id": "rec-004",
+    "title": "Client Call - Feedback Session",
+    "durationSec": 1234,
+    "tags": ["client", "feedback"],
+    "createdAt": "2024-01-12T11:20:00Z"
+  },
+  {
+    "id": "rec-005",
+    "title": "Daily Standup - Engineering",
+    "durationSec": 567,
+    "tags": ["standup", "engineering", "daily"],
+    "createdAt": "2024-01-11T09:00:00Z"
+  },
+  {
+    "id": "rec-006",
+    "title": "User Research Session",
+    "durationSec": 3421,
+    "tags": ["research", "user"],
+    "createdAt": "2024-01-10T15:30:00Z"
+  },
+  {
+    "id": "rec-007",
+    "title": "Training: New Features Walkthrough",
+    "durationSec": 2789,
+    "tags": ["training", "features", "walkthrough"],
+    "createdAt": "2024-01-09T13:00:00Z"
+  },
+  {
+    "id": "rec-008",
+    "title": "Brainstorming: Marketing Campaign",
+    "durationSec": 1856,
+    "tags": ["brainstorming", "marketing"],
+    "createdAt": "2024-01-08T10:15:00Z"
+  },
+  {
+    "id": "rec-009",
+    "title": "Code Review Discussion",
+    "durationSec": 1123,
+    "tags": ["code", "review", "discussion"],
+    "createdAt": "2024-01-07T16:30:00Z"
+  },
+  {
+    "id": "rec-010",
+    "title": "Weekly All-Hands Meeting",
+    "durationSec": 2967,
+    "tags": ["all-hands", "weekly"],
+    "createdAt": "2024-01-05T11:00:00Z"
+  }
+]

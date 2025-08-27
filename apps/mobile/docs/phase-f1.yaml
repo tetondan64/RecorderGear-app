@@ -1,0 +1,111 @@
+phase: F1
+title: "Recording & Playback MVP (Expo Go)"
+goal: "Let users record audio, save files, list them in Library, and play/rename/delete — all locally, Expo Go compatible."
+
+assumptions:
+  - expo managed workflow (Expo Go)
+  - packages: expo-av, expo-file-system, expo-haptics (already allowed), expo-router (already added in P0)
+  - storage: files in FileSystem.documentDirectory + 'recordings/'
+  - index file: JSON at FileSystem.documentDirectory + 'recordings/index.json'
+  - file format: m4a (AAC)
+
+repo_changes:
+  add_files:
+    - /apps/mobile/src/lib/fs/paths.ts
+    - /apps/mobile/src/lib/fs/indexStore.ts
+    - /apps/mobile/src/lib/permissions.ts
+    - /apps/mobile/src/lib/haptics.ts
+    - /apps/mobile/src/lib/audio/recording.ts
+    - /apps/mobile/src/lib/audio/player.ts
+    - /apps/mobile/src/lib/store/recordings.ts
+    - /apps/mobile/app/recording/[id].tsx
+    - /apps/mobile/src/components/record/RecordTimer.tsx
+    - /apps/mobile/src/components/record/PermissionGate.tsx
+    - /apps/mobile/src/components/player/PlayerControls.tsx
+    - /apps/mobile/src/components/player/SeekBar.tsx
+  modify_files:
+    - /apps/mobile/app/(tabs)/record.tsx
+    - /apps/mobile/app/(tabs)/library.tsx
+    - /apps/mobile/src/components/ui/ListItem.tsx
+    - /apps/mobile/src/lib/utils/format.ts
+
+data_model:
+  recording_index_json:
+    path: "<documentDirectory>/recordings/index.json"
+    shape:
+      - id: string        # uuid-like
+      - fileUri: string   # absolute URI to .m4a
+      - title: string
+      - durationSec: number
+      - createdAt: string # ISO
+      - updatedAt: string # ISO
+  rules:
+    - title defaults to "Recording_YYYYMMDD_HHMMSS"
+    - rename updates title only (file name stays by id)
+    - delete removes audio file + removes from index
+
+user_flows:
+  - first_recording:
+      1: open Record tab → PermissionGate requests mic permission
+      2: tap "Record" → timer starts
+      3: tap "Stop" → file saved, index updated, success haptic
+      4: Library shows the new item
+  - playback:
+      1: tap Library item → Player screen (/recording/[id])
+      2: tap Play/Pause, scrub with SeekBar
+      3: optionally Rename (inline text field + save)
+      4: optionally Delete (confirm dialog)
+
+acceptance_criteria:
+  - [ ] First launch: Record tab requests microphone permission the first time only.
+  - [ ] Tapping Record starts recording; UI shows running timer (00:00, 00:01, …).
+  - [ ] Tapping Stop saves an .m4a file to "<documentDirectory>/recordings/{id}.m4a" and updates index.json.
+  - [ ] Library tab lists actual recordings from index.json (not mock data).
+  - [ ] Tapping a Library item opens "/recording/[id]" Player screen.
+  - [ ] Player screen: can Play/Pause; shows currentTime and total duration; SeekBar scrubs audio.
+  - [ ] Rename updates the title in index.json and reflects immediately in Library.
+  - [ ] Delete removes the file and the index entry; Library updates accordingly.
+  - [ ] All new unit/component tests pass; ESLint + TypeScript strict pass; CI green.
+
+tests:
+  setup:
+    - jest mocks for: expo-av, expo-file-system, expo-haptics
+  unit:
+    - indexStore.spec.ts: create/read/write index.json; add/remove/rename entries
+    - recording.spec.ts: start/stop logic calls expo-av correctly (mocked)
+    - player.spec.ts: load/play/pause/seek calls (mocked)
+    - permissions.spec.ts: permission flow branches (granted/denied)
+    - format.spec.ts: duration format for diverse values
+  component:
+    - record_tab.spec.tsx: pressing Record toggles to Stop; onStop triggers add-to-index
+    - library_list.spec.tsx: renders items from store; tap navigates to /recording/[id]
+    - player_controls.spec.tsx: play/pause button toggles state; SeekBar updates current time
+  assertions_minimum: 25
+
+perf_budgets:
+  - start_record_latency_ms_p95: <= 250
+  - stop_to_list_item_visible_ms_p95: <= 600
+  - player_play_toggle_latency_ms_p95: <= 150
+  - memory_leak_check: "no increasing trend after 3 record→play cycles (manual QA note)"
+
+accessibility:
+  - Record/Stop buttons have role + label
+  - List items have accessibilityLabel "Recording: {title}, {mm:ss}"
+  - Player controls labeled; SeekBar has accessible name and value text
+
+ci_pipeline:
+  - same as P0 (lint, typecheck, tests on pull_request)
+
+migrations:
+  - remove dependency on /src/mock/library.json in Library tab rendering
+  - on first run of F1:
+      - if "<documentDirectory>/recordings/index.json" does not exist → create with []
+      - show Empty State until user makes first recording
+
+risks_and_mitigations:
+  - mic not available on simulators:
+      mitigation: "Test recording on physical device via Expo Go; use mocks for tests."
+  - file permission errors:
+      mitigation: "Use FileSystem.documentDirectory; not cache/temp paths."
+notes:
+  - "Keep everything Expo Go–friendly; no custom native modules."

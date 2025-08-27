@@ -1,0 +1,61 @@
+phase: C4
+title: "Multi-Device Sync & Conflict Handling (Foreground Pull)"
+goal: "Keep Library consistent across devices via incremental pull/merge with cursors, tombstones, and deterministic conflict rules."
+
+assumptions:
+  - Phases C2 (storage), C2a (optional), DB1 (Postgres), and C3 (Auth) are in place.
+  - Expo Go runtime (foreground only).
+
+api_contract:
+  route: "GET /v1/sync/changes?since=<cursor>&limit=500"
+  cursor: "opaque base64 of {ts:number(ms), seq:number}"
+  paging: "returns {items[], next, hasMore}"
+  scopes: "per-user via JWT; returns deletes as op:'delete' (tombstones)"
+
+conflict_rules:
+  scalars: "last-write-wins by updatedAt; tie-break id"
+  tags: "set-merge; if same pair upsert vs delete, newer updatedAt wins"
+  deletes: "tombstone locally; resurrect only with newer upsert"
+
+mobile_triggers:
+  - app_start_if_cloud_enabled
+  - app_foreground_if_stale (5 min)
+  - manual_sync_now
+  - cloud_tab_pull_to_refresh
+
+storage_updates:
+  - add lastCursor + lastSyncAt to settings.json
+  - ensure JSON writes are atomic; keep local tombstones with deletedAt
+
+acceptance_criteria:
+  - [ ] With cloudEnabled=true, pulling after edits on Device A updates Device B within one manual sync.
+  - [ ] Title edits that race resolve by last-write-wins.
+  - [ ] Tag add/remove on different devices result in set-merge (both tags present if concurrent).
+  - [ ] Deleting a tag or folder on one device removes it on another after sync (tombstone honored).
+  - [ ] Cursor only advances after successful application; re-running a page is idempotent (no dupes/crashes).
+  - [ ] With cloudEnabled=false, no sync calls occur.
+  - [ ] All new tests pass; ESLint + TS strict pass; CI green.
+
+tests:
+  api:
+    - sync_changes.test: returns upserts/deletes in order; paging works; per-user isolation
+  mobile:
+    - sync_merge.spec.ts: LWW, set-merge, tombstones, resurrection with newer upsert
+    - sync_puller.spec.ts: triggers, cursor persistence, budget limits, flag gating
+  assertions_minimum: 35
+
+perf_budgets:
+  - merge_apply_p95_ms (1000 items): <= 120
+  - pull_page_p95_ms (LAN): <= 200
+  - full_burst_budget_ms: <= 3000
+
+risks_and_mitigations:
+  - risk: "Clock skew across devices"
+    mitigation: "Server's updated_at is source of truth; client uses server timestamps only"
+  - risk: "Resurrection of deleted items"
+    mitigation: "Keep local tombstones; only resurrect on strictly newer updatedAt"
+  - risk: "Large first sync"
+    mitigation: "Paging + burst budget; show spinner only on Cloud tab"
+
+notes:
+  - Push remains as in C2/C2a. In a later phase (BG1) we'll add true background sync using EAS Dev Client.

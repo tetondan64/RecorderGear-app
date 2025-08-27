@@ -1,0 +1,89 @@
+phase: C2r
+title: "Unified Auto-Sync (iCloud-style) — Single Library"
+goal: "Automatic, zero-config cloud backup with per-item status and minimal controls; remove Cloud tab and manual upload."
+
+supersedes:
+  - C2a  # Foreground auto-backup (now merged)
+  - C2b  # Feature flags (now simplified to autoSyncEnabled/wifiOnly/paused)
+
+assumptions:
+  - C2 API exists: /v1/uploads/presign, /v1/recordings/finalize, /v1/recordings (list optional if used)
+  - Expo Go runtime; background = foreground/resume only (true background in BG1)
+  - Base API URL is known from build config (no user URL input)
+
+settings:
+  file: "<documentDirectory>/meta/settings.json"
+  defaults:
+    autoSyncEnabled: true     # ASSUMPTION; set false if you prefer
+    wifiOnly: false
+    paused: false
+
+queue_persistence:
+  file: "<documentDirectory>/meta/sync.json"
+  item_fields:
+    - recordingId: string
+    - asset: "audio"
+    - status: "queued" | "uploading" | "uploaded" | "failed"
+    - progressPct: number
+    - attemptCount: number
+    - lastError: string | null
+    - updatedAt: ISO string
+
+triggers:
+  - on_new_recording_saved
+  - on_app_active
+  - on_connectivity_online (respect wifiOnly)
+  - manual_item_retry (long-press action)
+
+ui:
+  library:
+    - per_item_badge: ["local","queued","uploading","synced","failed"] with icons and a11y labels
+    - header_activity_indicator: shows when queue non-empty or uploading
+    - long_press_menu: ["Retry/Sync Now", "View Error" if failed]
+  settings_cloud:
+    - toggles: autoSyncEnabled, wifiOnly, paused
+    - when paused=true: engine halts immediately; queue preserved
+  toasts:
+    - success_on_upload_complete
+    - error_on_failed_with_reason
+
+behavior:
+  - concurrency: 1
+  - retry_backoff_ms: [1000, 3000, 7000, 15000]
+  - stop_on_app_background: true (resume on active)
+  - respect_wifi_only: skip when networkType != "WIFI"
+  - idempotency: check status before re-upload; finalize safe once
+
+accessibility:
+  - badges readable ("Cloud status: queued/uploading x%/synced/failed")
+  - toggles labeled; header indicator has "Sync in progress"
+
+acceptance_criteria:
+  - [ ] New recording auto-enqueues; with autoSyncEnabled=true and allowed network, upload begins within 5s.
+  - [ ] Wi-Fi only: on cellular, items remain queued; switching to Wi-Fi starts upload automatically.
+  - [ ] Pause sync halts in-flight after current PUT; queue remains; resume continues.
+  - [ ] Failed uploads show ❌ badge + error; long-press "Retry" re-enqueues and succeeds when issue resolved.
+  - [ ] Header indicator shows while uploads active; disappears when idle.
+  - [ ] No Cloud tab present; Library is the single source of truth for user UX.
+  - [ ] Queue and settings persist across app restarts.
+  - [ ] Unit + component tests added; lint/typecheck pass; CI green.
+
+tests:
+  unit:
+    - sync_manager.spec.ts: triggers, wifiOnly gating, pause/resume, retry/backoff, persistence
+    - sync_queue.spec.ts: enqueue/dequeue/state transitions; idempotency checks
+  component:
+    - badges_render.spec.tsx: correct badge per status + a11y
+    - long_press_retry.spec.tsx: failed → retry → uploading → synced flow
+    - settings_cloud.spec.tsx: toggles gate behavior; header indicator visibility
+  assertions_minimum: 30
+
+perf_budgets:
+  - enqueue_to_put_start_p95_ms: <= 500 (when allowed)
+  - put_to_finalize_p95_ms (10MB LAN): <= 2500
+  - queue_restore_on_start_p95_ms: <= 150
+
+risks_and_mitigations:
+  - "Expo Go background limits": "Uploads only run while app is active; plan BG1 with TaskManager for true background."
+  - "Hidden errors": "Badge + long-press 'View Error'; debug log behind dev flag."
+  - "Cellular data usage": "wifiOnly toggle; default OFF with clear copy."

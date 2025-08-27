@@ -1,0 +1,68 @@
+phase: DB1
+title: "API: Real Database (Postgres via Drizzle)"
+goal: "Move API metadata from JSON files to Postgres; keep response shapes stable; prepare server truth for folders/tags."
+
+assumptions:
+  - Mobile remains Expo Go; no mobile code changes required in this phase.
+  - C2 S3 presign/finalize exists; only metadata persistence changes.
+  - Local Postgres via docker-compose; CI uses a Postgres service.
+
+schema:
+  tables:
+    users: [id uuid pk, email text unique nullable, created_at timestamptz default now()]
+    recordings: [id text pk, user_id uuid nullable, title text, duration_sec int, s3_key text, created_at timestamptz, updated_at timestamptz]
+    folders: [id uuid pk, user_id uuid nullable, name text, parent_id uuid nullable, created_at timestamptz default now()]
+    tags: [id uuid pk, user_id uuid nullable, name text unique_ci, created_at timestamptz default now()]
+    recording_tags: [recording_id text fk, tag_id uuid fk, pk(recording_id, tag_id)]
+  constraints:
+    - "folder depth <=2 (root→child); deleting non-empty folder blocked"
+    - "tag name unique case-insensitive"
+indexes:
+  - "recordings(user_id, created_at desc)"
+  - "tags(lower(name) unique)"
+  - "recording_tags(tag_id)"
+
+routes:
+  - health: adds db:'ok'
+  - recordings: finalize/list/delete use DB; shapes unchanged
+  - folders/tags/relationships: CRUD + rules (server-prep; may be unused by mobile yet)
+
+migration_plan:
+  - create tables via drizzle migrations
+  - optional import: read /apps/api/storage/db.json → insert into recordings
+  - leave legacy JSON in place; mark deprecated
+
+acceptance_criteria:
+  - [ ] `docker compose up -d` in /infra/postgres starts Postgres locally.
+  - [ ] `npm run db:migrate` applies migrations without error.
+  - [ ] Import script loads legacy JSON into recordings when present.
+  - [ ] Finalize → List → Delete workflow works against Postgres; responses match C2 shapes.
+  - [ ] Folders: cannot create third-level; delete blocked if not empty (409).
+  - [ ] Tags: unique (case-insensitive); safe delete when in use (409 unless force=true).
+  - [ ] CI runs API tests against a Postgres service.
+
+tests:
+  - db_migration.test: migrations run; schema exists
+  - recordings_db.e2e.test: finalize→list includes signed fileUrl; delete cleans up row
+  - folders_tags.e2e.test: depth rule enforced; safe-delete enforced; tag uniqueness enforced
+  - assertions_minimum: 30
+
+perf_budgets:
+  - list_recordings_p95_ms (1000 rows): <= 120
+  - finalize_insert_p95_ms: <= 80
+  - tag_crud_p95_ms: <= 80
+
+security:
+  - restrict CORS as in dev (same as C2)
+  - prepare for per-user scoping (user_id nullable for now; default dev tenant)
+
+risks_and_mitigations:
+  - risk: "Breaking mobile responses"
+    mitigation: "Keep response shapes identical; add contract tests"
+  - risk: "Folder depth logic bugs"
+    mitigation: "Unit test parent chain; add DB constraint + code guard"
+  - risk: "CI flakiness with DB"
+    mitigation: "Use Postgres service; run migrations before tests"
+
+notes:
+  - Next phases: C3 (Auth & Accounts) attaches user_id; C4 adds multi-device sync APIs.

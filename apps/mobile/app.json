@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "RecorderGear",
+    "slug": "recordergear",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.recordergear.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) needs access to your microphone to record audio."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.recordergear.mobile",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-audio"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "recordergear"
+  }
+}

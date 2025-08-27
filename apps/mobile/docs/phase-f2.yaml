@@ -1,0 +1,166 @@
+phase: F2
+title: "Library Organization: Folders & Tags + Left Filter Drawer (Expo Go)"
+goal: "Add two-level folders and tagging with explorers, filters, and safe-delete flows; persist locally via JSON; keep Expo Go compatibility."
+
+assumptions:
+  - Expo managed workflow (Expo Go), pure JS/TS.
+  - Use react-native-gesture-handler + react-native-reanimated for drawer animation (Expo SDK-bundled).
+  - Babel must include 'react-native-reanimated/plugin'.
+  - Keep F1 recording/playback as-is; extend data model only.
+  - Use existing zustand store pattern from F1 for state.
+
+storage_layout:
+  base: "<FileSystem.documentDirectory>"
+  paths:
+    recordings_dir: "recordings/"
+    recordings_index: "recordings/index.json"
+    meta_dir: "meta/"
+    folders_json: "meta/folders.json"
+    tags_json: "meta/tags.json"
+
+data_models:
+  recording_entry:
+    fields:
+      id: string
+      fileUri: string
+      title: string
+      durationSec: number
+      createdAt: string
+      updatedAt: string
+      folderId: string | null
+      tags: string[]             # tag ids
+  folder:
+    fields:
+      id: string
+      name: string
+      parentId: string | null    # null=root
+    rules:
+      - "Depth limit: root -> child (max depth 2); no grandchildren."
+      - "Delete only if folder is empty (no subfolders & no recordings)."
+  tag:
+    fields:
+      id: string
+      name: string
+    rules:
+      - "Name unique (case-insensitive)."
+      - "On delete, warn if tag is used by N recordings; require explicit confirm."
+
+repo_changes:
+  add_files:
+    - /apps/mobile/src/lib/fs/metaStore.ts
+    - /apps/mobile/src/lib/store/folders.ts
+    - /apps/mobile/src/lib/store/tags.ts
+    - /apps/mobile/app/library/folders/index.tsx
+    - /apps/mobile/app/library/folders/[id].tsx
+    - /apps/mobile/app/library/tags/index.tsx
+    - /apps/mobile/src/components/library/FolderBreadcrumb.tsx
+    - /apps/mobile/src/components/library/TagChips.tsx
+    - /apps/mobile/src/components/common/ConfirmDialog.tsx
+    - /apps/mobile/src/components/common/TextField.tsx
+    - /apps/mobile/src/components/common/ActionSheet.tsx
+    - /apps/mobile/src/components/drawer/FilterDrawer.tsx
+    - /apps/mobile/src/components/drawer/DrawerHandle.tsx
+    - /apps/mobile/src/components/drawer/DrawerItem.tsx
+    - /apps/mobile/src/components/drawer/DrawerSection.tsx
+  modify_files:
+    - /apps/mobile/app/(tabs)/library.tsx
+    - /apps/mobile/app/recording/[id].tsx
+    - /apps/mobile/src/lib/fs/indexStore.ts
+    - /apps/mobile/src/lib/store/recordings.ts
+    - /apps/mobile/src/components/ui/ListItem.tsx
+    - /apps/mobile/src/lib/utils/format.ts
+    - /apps/mobile/babel.config.js
+
+ui_details:
+  library_header:
+    - left_icon:
+        name: "menu-outline"
+        testID: "open-filter-drawer"
+        a11yLabel: "Open filters and folders"
+        placement: "left of the Library title (matches reference screenshot)"
+  drawer:
+    width_pct: 0.86
+    backdrop_opacity: 0.4
+    gestures:
+      - "Swipe right-to-left to close"
+    sections_order:
+      - search_placeholder: "Search in files"    # non-functional in F2
+      - quick: ["All recordings", "Uncategorized"]
+      - folders: "list with count (+) button"
+      - tags: "list with count (+) button"
+    item_behaviors:
+      - "Tap a folder → navigate Library to that folder (breadcrumb updates)"
+      - "Tap a tag → toggles tag filter (AND logic); chip appears in Library header"
+      - "Tap (+) in Folders/Tags → inline TextField to create; Enter to save"
+      - "Long-press or trailing … on folder/tag → rename/delete (safe-delete checks)"
+    close:
+      - "Tap scrim, swipe-close, or tap close icon in DrawerHandle"
+
+migrations:
+  on_app_start:
+    - Ensure "meta" directory exists; create folders.json=[] and tags.json=[] if missing.
+    - Read recordings/index.json; for any entry missing `folderId` or `tags`, set `folderId=null`, `tags=[]`, then persist.
+  rules:
+    - Non-destructive; do not rename or move existing files.
+
+acceptance_criteria:
+  - [ ] Tapping the new header icon opens a left slide-out drawer; scrim visible.
+  - [ ] Drawer shows All recordings (count) and Uncategorized (count).
+  - [ ] Folder list renders with counts and "+" to create; cannot create 3rd-level folder.
+  - [ ] Tag list renders with counts and "+" to create; names unique (case-insensitive).
+  - [ ] Selecting a folder updates Library and breadcrumb; selecting tags adds AND filters; both persist across close/reopen.
+  - [ ] Deleting a tag that is used shows a warning with usage count; delete only proceeds after confirm.
+  - [ ] Deleting a non-empty folder is blocked with a helpful message.
+  - [ ] Drawer closes via scrim tap, swipe-close, or close icon.
+  - [ ] All tests pass; ESLint + TS strict pass; CI green.
+
+tests:
+  unit:
+    - folders.spec.ts:
+        - creates root and child; prevents third-level
+        - delete blocked when folder has subfolders or recordings
+        - moving recording updates its folderId
+    - tags.spec.ts:
+        - create/rename unique names (case-insensitive)
+        - usageCount reflects assignments
+        - delete returns {canDelete:false, usageCount} when in use
+    - metaStore.spec.ts:
+        - reads/writes folders.json and tags.json (atomic write)
+        - initializes empty arrays on first run
+    - migration.spec.ts:
+        - adds folderId=null and tags=[] to legacy entries
+  component:
+    - drawer_open_close.spec.tsx:
+        - icon opens drawer; scrim/gesture closes; a11y labels present
+    - folder_explorer.spec.tsx:
+        - create folder from UI; navigate into it; breadcrumb navigation
+    - tag_explorer.spec.tsx:
+        - create tag, rename tag, attempt delete when used → confirm dialog appears
+    - library_filters.spec.tsx:
+        - tag chip selection filters list (AND)
+        - folder breadcrumb filters list
+    - player_tagging.spec.tsx:
+        - assign & unassign tags on Player; persists after reload (mock reload)
+  assertions_minimum: 30
+
+perf_budgets:
+  - drawer_open_anim_p95_ms: 160   # ≤10 frames at 60fps
+  - drawer_close_anim_p95_ms: 160
+  - list_refresh_after_filter_p95_ms: 60
+
+accessibility:
+  - Icon button a11yLabel: "Open filters and folders"
+  - Drawer announces "Filters opened" (accessibilityLiveRegion polite)
+  - Items have role="button" with readable names and counts
+
+ci_pipeline:
+  - unchanged (lint, typecheck, tests on pull_request)
+
+risks_and_mitigations:
+  - risk: "Reanimated plugin missing causes runtime error"
+    mitigation: "Add plugin at the end of babel.config.js"
+  - risk: "Gesture conflicts with list scroll"
+    mitigation: "Drawer captures horizontal pan; list remains vertical only"
+
+notes:
+  - Keep Expo Go–friendly: no native modules beyond Expo SDK.

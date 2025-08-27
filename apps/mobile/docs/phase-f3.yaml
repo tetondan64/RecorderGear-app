@@ -1,0 +1,101 @@
+phase: F3
+title: "Library Search & Sort (Expo Go)"
+goal: "Enable fast local search (title + tags) and sorting with persisted preferences. Integrate into the left Filter Drawer."
+
+assumptions:
+  - Expo managed workflow (Expo Go), pure JS/TS.
+  - Prior phases F1 (recordings) and F2 (folders/tags + drawer) are present.
+  - No new native modules; persistence via FileSystem JSON only.
+
+storage_layout:
+  base: "<FileSystem.documentDirectory>/meta"
+  files:
+    - settings_json: "settings.json"   # { query: string, recent: string[], sortBy: 'CREATED_AT'|'UPDATED_AT'|'DURATION', sortDir: 'ASC'|'DESC' }
+
+search_behavior:
+  - normalize: "case-insensitive, diacritics-insensitive (NFKD + accent strip)"
+  - fields: "title and tag names"
+  - scope: "applies within active folder and selected tags (AND)"
+  - debounce_ms: 150
+  - recent:
+      max: 5
+      unique_case_insensitive: true
+      order: "newest first"
+
+sorting:
+  - sortBy: ["CREATED_AT", "UPDATED_AT", "DURATION"]
+  - sortDir: ["ASC", "DESC"]
+  - tiebreakers: "CREATED_AT desc, then title asc"
+  - UI: "Sort By section in the drawer; ASC/DESC toggle; indicate current selection"
+
+repo_changes:
+  add_files:
+    - /apps/mobile/src/lib/store/search.ts
+    - /apps/mobile/src/lib/fs/settingsStore.ts
+    - /apps/mobile/src/components/library/SearchBar.tsx
+    - /apps/mobile/src/components/library/SortSheet.tsx
+    - /apps/mobile/src/components/library/Highlight.tsx
+  modify_files:
+    - /apps/mobile/src/components/drawer/FilterDrawer.tsx
+    - /apps/mobile/app/(tabs)/library.tsx
+    - /apps/mobile/src/components/ui/ListItem.tsx
+    - /apps/mobile/src/lib/store/recordings.ts
+    - /apps/mobile/src/lib/store/tags.ts
+    - /apps/mobile/src/lib/fs/metaStore.ts
+    - /apps/mobile/babel.config.js
+
+ui_details:
+  drawer:
+    - top: SearchBar (auto-focused on drawer open)
+    - sections_order:
+        - search
+        - quick: ["All recordings", "Uncategorized"]
+        - folders
+        - tags
+        - sort_by: ["Date Created", "Date Updated", "Duration"] with ASC/DESC
+  list_highlighting:
+    - ListItem title highlights query matches via <Highlight>
+  empty_states:
+    - when search active and no results: "No matches for '{query}'"
+
+acceptance_criteria:
+  - [ ] Typing in the drawer SearchBar filters the Library list by title OR tag names (case/diacritics-insensitive).
+  - [ ] Clearing the search shows the full (filtered-by-folder/tags) list again.
+  - [ ] Recent searches appear (max 5, newest first); tapping one applies it.
+  - [ ] Sorting controls switch between Date Created / Date Updated / Duration and ASC/DESC; list order updates immediately.
+  - [ ] Highlight appears on matching parts of titles.
+  - [ ] User query, recent searches, and sort preferences persist across app restarts.
+  - [ ] All new tests pass; ESLint + TS strict pass; CI green.
+
+tests:
+  unit:
+    - settingsStore.spec.ts: loads/saves JSON; debounced writes; recovers from empty/missing file
+    - search_store.spec.ts: setQuery/addRecent/reset; persistence round-trip
+    - search_filter.spec.ts: matching rules (title + tags), diacritics-insensitive, folder/tag scope, sort correctness (all combos)
+  component:
+    - drawer_search.spec.tsx: typing filters; recent chip applies; clear restores
+    - sort_sheet.spec.tsx: selecting sortBy + toggling direction reorders items
+    - highlight.spec.tsx: wraps matching substrings correctly
+  assertions_minimum: 30
+
+perf_budgets:
+  - search_latency_p95_ms (500 items): <= 40
+  - sort_apply_latency_p95_ms: <= 30
+  - drawer_open_focus_delay_ms: <= 150 (SearchBar focused after open)
+
+accessibility:
+  - SearchBar has accessible name "Search in files"
+  - Sort options have role="button" and announce selected state
+  - Highlight does not impair readability (sufficient contrast)
+
+ci_pipeline:
+  - unchanged (lint, typecheck, tests on pull_request)
+
+risks_and_mitigations:
+  - risk: "Large libraries slow search"
+    mitigation: "Pre-normalize titles/tags into lowercase/stripped fields in-memory; lightweight selectors; debounce input"
+  - risk: "Corrupt settings.json"
+    mitigation: "Atomic writes via temp file; default to safe empty state on parse errors"
+
+notes:
+  - This is LOCAL search only; transcript/full-text search comes after cloud & indexing phases.

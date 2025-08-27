@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: recordergear-minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    environment:
+      MINIO_ROOT_USER: MINIOadmin
+      MINIO_ROOT_PASSWORD: MINIOadmin
+      MINIO_DEFAULT_BUCKETS: recordergear-dev
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - minio_network
+
+  # Optional: Create bucket on startup
+  createbucket:
+    image: minio/mc:latest
+    container_name: recordergear-minio-setup
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: MINIOadmin
+      MINIO_ROOT_PASSWORD: MINIOadmin
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set minio http://minio:9000 MINIOadmin MINIOadmin); do echo 'MinIO not ready, waiting...'; sleep 1; done;
+      /usr/bin/mc mb minio/recordergear-dev --ignore-existing;
+      /usr/bin/mc anonymous set none minio/recordergear-dev;
+      echo 'Bucket recordergear-dev created and configured.';
+      "
+    networks:
+      - minio_network
+
+volumes:
+  minio_data:
+    driver: local
+
+networks:
+  minio_network:
+    driver: bridge

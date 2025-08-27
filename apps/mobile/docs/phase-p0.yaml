@@ -1,0 +1,92 @@
+phase: P0
+title: "Context & Repo Bootstrap (Expo Go)"
+goal: "Create a production-grade React Native + Expo (SDK 52+) app skeleton with tabs, theming, tests, and CI; no recording or backend yet."
+
+assumptions:
+  - stack: React Native + Expo Router + TypeScript (strict)
+  - tests: Jest + @testing-library/react-native via jest-expo
+  - package_manager: npm
+  - platform targets: iOS 15+, Android 9+
+  - runtime: Expo Go (managed workflow only)
+
+repo_layout:
+  - /README.md
+  - /apps/mobile/app.json
+  - /apps/mobile/babel.config.js
+  - /apps/mobile/package.json
+  - /apps/mobile/tsconfig.json
+  - /apps/mobile/jest.config.js
+  - /apps/mobile/jest.setup.ts
+  - /apps/mobile/.eslintrc.cjs
+  - /apps/mobile/.prettierrc.json
+  - /apps/mobile/app/_layout.tsx
+  - /apps/mobile/app/(tabs)/record.tsx
+  - /apps/mobile/app/(tabs)/library.tsx
+  - /apps/mobile/app/(tabs)/chat.tsx
+  - /apps/mobile/app/(tabs)/settings.tsx
+  - /apps/mobile/src/components/ui/{Button.tsx,Badge.tsx,ListItem.tsx,EmptyState.tsx}
+  - /apps/mobile/src/components/record/WaveButton.tsx
+  - /apps/mobile/src/lib/theme/{tokens.ts,index.ts}
+  - /apps/mobile/src/lib/store/index.ts
+  - /apps/mobile/src/lib/utils/format.ts
+  - /apps/mobile/src/mock/library.json
+  - /apps/mobile/src/features/wireframes/{record.md,library.md,chat.md,settings.md}
+  - /apps/mobile/__tests__/{tabs.spec.tsx,record_button.spec.tsx,list_item.spec.tsx,theme_tokens.spec.ts,format.spec.ts}
+  - /.github/workflows/mobile-ci.yml
+
+app_behavior:
+  tabs:
+    - record: "WaveButton uses expo-haptics for feedback (mocked in tests). No real recording yet."
+    - library: "Renders 10 items from /src/mock/library.json (title, mm:ss, ≤3 tag badges)."
+    - chat: "Empty state explaining the feature arrives later."
+    - settings: "Theme toggle (light/dark), app version, Developer→Enable Mocks switch (no-op)."
+
+mock_data:
+  library_items: 10
+  fields:
+    - id: string (uuid-like)
+    - title: string
+    - durationSec: number
+    - tags: string[] (≤3)
+    - createdAt: ISO string
+
+acceptance_criteria:
+  - [ ] App runs in Expo Go via QR from `npx expo start`.
+  - [ ] Bottom tabs show: Record, Library, Chat, Settings.
+  - [ ] Record: WaveButton renders; press triggers haptics (mocked) and visual feedback.
+  - [ ] Library: 10 mock items with mm:ss duration and ≤3 tag badges.
+  - [ ] Chat/Settings: correct placeholders; theme toggle works.
+  - [ ] Tests/ESLint/TypeScript strict all pass locally & in CI.
+
+tests:
+  component:
+    - tabs.spec.tsx: tab bar renders 4 labels; switching updates content
+    - record_button.spec.tsx: circular WaveButton + haptics mock assertion
+    - list_item.spec.tsx: title + mm:ss + ≤3 badges + accessibilityLabel
+  unit:
+    - theme_tokens.spec.ts: required token keys exist
+    - format.spec.ts: 0→"00:00", 65→"01:05", 600→"10:00"
+
+perf_budgets:
+  - cold_start_time_ms: 2000
+  - first_interactive_ms: 1500
+  - tab_switch_p95_ms: 100
+
+accessibility:
+  - All interactive elements have role + label
+  - Text respects system font scaling
+  - Contrast AA+
+
+ci_pipeline:
+  - on: pull_request
+  - node: 20.x
+  - steps: npm ci → lint → typecheck → test
+
+risks_and_mitigations:
+  - risk: "Adding a non-Expo-Go library breaks preview"
+    mitigation: "Stick to Expo SDK + pure JS in P0"
+  - risk: "Unit tests fail due to environment mismatch"
+    mitigation: "Use jest-expo preset and jest.setup.ts with jest-native"
+
+notes:
+  - "No network calls or native modules in P0."

@@ -1,0 +1,66 @@
+phase: C3
+title: "Auth & Accounts (Device → Email, JWT)"
+goal: "Introduce accounts with anonymous device registration, optional email upgrade via dev OTP, JWT auth, and user-scoped cloud storage."
+
+assumptions:
+  - DB1 Postgres is available.
+  - C2 presigned storage exists.
+  - Mobile remains Expo Go; no Apple Sign-In in this phase.
+
+api_changes:
+  auth:
+    routes:
+      - POST /v1/auth/device/register
+      - POST /v1/auth/token/refresh
+      - POST /v1/auth/email/request
+      - POST /v1/auth/email/verify
+    env:
+      - JWT_SECRET (required)
+      - ACCESS_TTL_SEC: 3600
+      - REFRESH_TTL_SEC: 1209600
+    data:
+      - devices, refresh_tokens, email_otps tables
+  recordings_scope:
+    - all /v1/recordings* routes require Bearer token
+    - s3 key prefix: "u/{userId}/recordings/{id}.m4a"
+    - finalize writes recordings.user_id = auth user
+
+mobile_changes:
+  - Secure token storage (expo-secure-store)
+  - Auth store (zustand) + http wrapper adds Authorization and handles refresh
+  - Sign-in UI (email OTP) + Settings account section
+  - First boot auto device-register; tokens persisted
+
+acceptance_criteria:
+  - [ ] First launch registers device and stores tokens (no UI).
+  - [ ] Cloud calls include Authorization and succeed; unauthenticated calls fail 401.
+  - [ ] S3 object keys are prefixed with the auth user id.
+  - [ ] Email upgrade flow works in dev (code returned in response); tokens rotate; Settings shows email.
+  - [ ] User A cannot list/delete user B's recordings (scoping test passes).
+  - [ ] All new tests pass; ESLint + TS strict pass; CI green.
+
+tests:
+  api:
+    - auth_device.test: register → authorized list ok; refresh rotates
+    - auth_email_otp.test: request returns code (dev); verify links email; old tokens invalidated
+    - recordings_scoped.e2e: per-user isolation for list/delete
+  mobile:
+    - auth_store.spec.ts: hydrate, refresh-on-401 once, logout clears
+    - auth_http.spec.ts: headers set; refresh path; failure after second 401
+    - email_otp_flow.spec.tsx: request→verify UI updates
+  assertions_minimum: 35
+
+perf_budgets:
+  - device_register_p95_ms: <= 120
+  - refresh_issue_p95_ms: <= 80
+  - list_recordings_auth_p95_ms: <= 150
+
+security_notes:
+  - Dev-only OTP response; hide in production.
+  - Use HTTPS in production; CORS stays dev-open for LAN.
+
+risks_and_mitigations:
+  - risk: "Token refresh loops"
+    mitigation: "Single retry on 401; logout on double-fail"
+  - risk: "Key prefix mismatch"
+    mitigation: "Unit test keyFor(userId, id) and assert on finalize"

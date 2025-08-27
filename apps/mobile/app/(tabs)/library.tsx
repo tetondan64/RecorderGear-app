@@ -259,7 +259,8 @@ export default function LibraryScreen() {
 
   const handleRetrySync = useCallback(async (recording: RecordingEntry) => {
     try {
-      await syncManager.addRecording(recording);
+      // For now, just trigger a general sync
+      await syncManager.syncNow();
       Toast.info('Retrying sync...');
     } catch (error: any) {
       Toast.error(`Failed to retry sync: ${error.message}`);
@@ -268,7 +269,8 @@ export default function LibraryScreen() {
 
   const handleManualSync = useCallback(async (recording: RecordingEntry) => {
     try {
-      await syncManager.addRecording(recording);
+      // For now, just trigger a general sync
+      await syncManager.syncNow();
       Toast.info('Starting sync...');
     } catch (error: any) {
       Toast.error(`Failed to start sync: ${error.message}`);
@@ -276,7 +278,8 @@ export default function LibraryScreen() {
   }, []);
 
   const getSyncStatus = useCallback((recording: RecordingEntry): SyncStatus => {
-    return syncManager.getRecordingStatus(recording.id);
+    // Default to 'local' for now - individual recording sync status not implemented yet
+    return 'local';
   }, []);
 
   const getSyncProgress = useCallback((recording: RecordingEntry): number | undefined => {

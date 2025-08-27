@@ -21,8 +21,8 @@ export async function initializeAutoSync(): Promise<void> {
   console.log('SIMPLE_SYNC: Initializing Phase C4 auto-sync triggers...');
 
   try {
-    // Import syncManager dynamically to avoid circular dependencies
-    const { syncManager } = await import('./syncManager');
+    // Import SyncManager dynamically to avoid circular dependencies
+    const { syncManager } = await import('./SyncManager');
     
     // Wire app state monitoring
     setupAppStateMonitoring(syncManager);

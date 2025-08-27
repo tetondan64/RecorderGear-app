@@ -1,4 +1,4 @@
-import { syncManager } from './syncManager';
+import { syncManager } from './SyncManager';
 import { networkMonitor } from '../net';
 import { AppState } from 'react-native';
 import type { RecordingEntry } from '../fs/indexStore';

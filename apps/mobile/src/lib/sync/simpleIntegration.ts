@@ -69,7 +69,7 @@ export async function onRecordingSavedTrigger(recording: RecordingEntry): Promis
     console.log('SIMPLE_SYNC: New recording saved (triggering sync):', recording.id);
     
     // Import syncManager dynamically
-    const { syncManager } = await import('./syncManager');
+    const { syncManager } = await import('./SyncManager');
     
     // In Phase C4, we pull changes rather than push
     // Trigger a sync to pick up any other changes that might exist
@@ -89,7 +89,7 @@ export async function triggerManualSync(): Promise<void> {
   try {
     console.log('SIMPLE_SYNC: Manual sync triggered...');
     
-    const { syncManager } = await import('./syncManager');
+    const { syncManager } = await import('./SyncManager');
     await syncManager.syncNow();
     
     console.log('SIMPLE_SYNC: Manual sync completed');
@@ -104,7 +104,7 @@ export async function triggerManualSync(): Promise<void> {
  */
 export async function getSyncStatus() {
   try {
-    const { syncManager } = await import('./syncManager');
+    const { syncManager } = await import('./SyncManager');
     return await syncManager.getStatus();
   } catch (error) {
     console.error('SIMPLE_SYNC: Failed to get sync status:', error);

@@ -9,8 +9,8 @@
  */
 
 // Core sync orchestrator
-export { SyncManager, syncManager, syncHelpers } from './syncManager';
-export type { SyncStatus, SyncConfiguration } from './syncManager';
+export { SyncManager, syncManager, syncHelpers } from './SyncManager';
+export type { SyncStatus, SyncConfiguration } from './SyncManager';
 
 // Pull mechanism
 export { SyncPuller, createSyncPuller, quickSync } from './pull';

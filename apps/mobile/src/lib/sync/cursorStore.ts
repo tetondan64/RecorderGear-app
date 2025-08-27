@@ -1,4 +1,4 @@
-import { settingsStorage } from '../fs/settingsStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SyncCursorState {
   lastCursor: string | null;
@@ -7,18 +7,18 @@ interface SyncCursorState {
 
 /**
  * Persistent storage for sync cursor and last sync timestamp
- * Stored in settings.json for atomic writes and device persistence
+ * Uses AsyncStorage for simple key-value persistence
  */
 export class CursorStore {
-  private static readonly CURSOR_KEY = 'sync.cursor';
-  private static readonly LAST_SYNC_KEY = 'sync.lastSyncAt';
+  private static readonly CURSOR_KEY = '@sync:cursor';
+  private static readonly LAST_SYNC_KEY = '@sync:lastSyncAt';
   
   /**
    * Get current sync cursor
    */
   static async getCursor(): Promise<string | null> {
     try {
-      const cursor = await settingsStorage.get(CursorStore.CURSOR_KEY);
+      const cursor = await AsyncStorage.getItem(CursorStore.CURSOR_KEY);
       return cursor || null;
     } catch (error) {
       console.error('CURSOR_STORE: Failed to get cursor:', error);
@@ -31,7 +31,7 @@ export class CursorStore {
    */
   static async setCursor(cursor: string): Promise<void> {
     try {
-      await settingsStorage.set(CursorStore.CURSOR_KEY, cursor);
+      await AsyncStorage.setItem(CursorStore.CURSOR_KEY, cursor);
       console.log('CURSOR_STORE: Cursor updated');
     } catch (error) {
       console.error('CURSOR_STORE: Failed to set cursor:', error);
@@ -44,7 +44,7 @@ export class CursorStore {
    */
   static async getLastSyncAt(): Promise<Date | null> {
     try {
-      const lastSyncStr = await settingsStorage.get(CursorStore.LAST_SYNC_KEY);
+      const lastSyncStr = await AsyncStorage.getItem(CursorStore.LAST_SYNC_KEY);
       return lastSyncStr ? new Date(lastSyncStr) : null;
     } catch (error) {
       console.error('CURSOR_STORE: Failed to get lastSyncAt:', error);
@@ -57,7 +57,7 @@ export class CursorStore {
    */
   static async setLastSyncAt(timestamp: Date): Promise<void> {
     try {
-      await settingsStorage.set(CursorStore.LAST_SYNC_KEY, timestamp.toISOString());
+      await AsyncStorage.setItem(CursorStore.LAST_SYNC_KEY, timestamp.toISOString());
       console.log('CURSOR_STORE: Last sync time updated:', timestamp.toISOString());
     } catch (error) {
       console.error('CURSOR_STORE: Failed to set lastSyncAt:', error);
@@ -71,7 +71,7 @@ export class CursorStore {
   static async getCursorState(): Promise<SyncCursorState> {
     const [lastCursor, lastSyncAtStr] = await Promise.all([
       CursorStore.getCursor(),
-      settingsStorage.get(CursorStore.LAST_SYNC_KEY)
+      AsyncStorage.getItem(CursorStore.LAST_SYNC_KEY)
     ]);
     
     return {
@@ -87,8 +87,8 @@ export class CursorStore {
     try {
       // Use batch operations if available, otherwise sequential
       await Promise.all([
-        settingsStorage.set(CursorStore.CURSOR_KEY, cursor),
-        settingsStorage.set(CursorStore.LAST_SYNC_KEY, syncTime.toISOString())
+        AsyncStorage.setItem(CursorStore.CURSOR_KEY, cursor),
+        AsyncStorage.setItem(CursorStore.LAST_SYNC_KEY, syncTime.toISOString())
       ]);
       
       console.log('CURSOR_STORE: Cursor state updated', {
@@ -107,8 +107,8 @@ export class CursorStore {
   static async clear(): Promise<void> {
     try {
       await Promise.all([
-        settingsStorage.remove(CursorStore.CURSOR_KEY),
-        settingsStorage.remove(CursorStore.LAST_SYNC_KEY)
+        AsyncStorage.removeItem(CursorStore.CURSOR_KEY),
+        AsyncStorage.removeItem(CursorStore.LAST_SYNC_KEY)
       ]);
       
       console.log('CURSOR_STORE: Cursor data cleared');
